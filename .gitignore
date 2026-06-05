@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Next.js Build
+.next/
+out/
+
+# Production Build Cache
+npm_cache/
+
+# Vercel Configuration
+.vercel/
+
+# OS Files
+.DS_Store

@@ -1,0 +1,79 @@
+/* Global Reset & Pilot Typography */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root {
+  /* Pilot Core Colors */
+  --pilot-black: #3f3c3d;
+  --pilot-dark-purple: #281350;
+  --white: #ffffff;
+  
+  /* Purple Scale */
+  --pilot-purple: #5f2ee5; /* Primary CTA purple */
+  --purple-medium: #825beb;
+  --purple-light: #c8b6fc;
+  --purple-deep: #3c2d89;
+  --purple-tint: #f6f3ff; /* Pale periwinkle */
+
+  /* Neutral/Gray */
+  --dark-gray: #656363;
+  --gray-muted: #999999;
+  --gray-border: #e0e0e0;
+  
+  /* Tint Backgrounds */
+  --bg-access: #fcf3d6; /* Warm cream */
+  --bg-clarity: #f8edff; /* Cool lilac */
+  --bg-trust: #e7f9ff; /* Cool cyan */
+  --bg-highlight: #deceff; /* Highlight/Curiosity */
+  
+  /* Functional */
+  --error-red: #ce1836;
+  --bright-blue: #4f9bf3;
+  
+  /* Font Stacks */
+  --font-sans: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "Space Mono", "Spacemono", monospace;
+}
+
+body {
+  background-color: var(--white);
+  color: var(--pilot-black);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Custom Scrollbar for modern look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(40, 19, 80, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(40, 19, 80, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(95, 46, 229, 0.3);
+}
+
+a {
+  color: var(--pilot-purple);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--purple-medium);
+}
