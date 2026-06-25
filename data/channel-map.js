@@ -161,7 +161,9 @@ export const channelMapData = {
             "in"
           ],
           "notableContent": "Co-hosts *The Woodard Report Podcast*; publishes *The Woodard Report* weekly newsletter and blog; hosts the annual *Scaling New Heights* conference; active on YouTube and LinkedIn",
-          "segment": "accounting"
+          "segment": "accounting",
+          "engagementStatus": "Episode recorded June 1, published June 24",
+          "episodeLink": "https://scalingnewheights.libsyn.com/episode-177-from-startup-founder-to-autonomous-bookkeeping-how-pilot-built-the-future-of-accounting-the-woodard-report-podcast"
         },
         {
           "name": "Darren Root",

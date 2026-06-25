@@ -116,6 +116,8 @@ export default function Home() {
   const [formChannels, setFormChannels] = useState([])
   const [formLinkedin, setFormLinkedin] = useState('')
   const [formNotable, setFormNotable] = useState('')
+  const [formEngagementStatus, setFormEngagementStatus] = useState('')
+  const [formEpisodeLink, setFormEpisodeLink] = useState('')
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
 
@@ -219,6 +221,14 @@ export default function Home() {
       newInfluencer.linkedinUrl = formLinkedin.trim()
     }
 
+    if (formEngagementStatus.trim()) {
+      newInfluencer.engagementStatus = formEngagementStatus.trim()
+    }
+
+    if (formEpisodeLink.trim()) {
+      newInfluencer.episodeLink = formEpisodeLink.trim()
+    }
+
     // Add to state
     const categoriesCopy = JSON.parse(JSON.stringify(categoriesData))
     const cat = categoriesCopy.find(c => c.id === formCategory)
@@ -248,6 +258,8 @@ export default function Home() {
     setFormChannels([])
     setFormLinkedin('')
     setFormNotable('')
+    setFormEngagementStatus('')
+    setFormEpisodeLink('')
     setFormSuccess('Influencer added successfully!')
   }
 
@@ -342,6 +354,8 @@ export default function Home() {
     const descIdx = headers.findIndex(h => /How do they describe/i.test(h) || /describe/i.test(h) || /bio/i.test(h) || /description/i.test(h) || /notable/i.test(h))
     const socialIdx = headers.findIndex(h => /Link to main social/i.test(h) || /profile/i.test(h) || /LinkedIn/i.test(h))
     const segmentIdx = headers.findIndex(h => /Sector/i.test(h) || /Segment/i.test(h) || /Category/i.test(h))
+    const statusIdx = headers.findIndex(h => /Engagement Status/i.test(h) || /Status/i.test(h) || /Engagement/i.test(h))
+    const episodeIdx = headers.findIndex(h => /Episode Link/i.test(h) || /Asset Link/i.test(h) || /Episode\/Asset Link/i.test(h) || /Webinar Link/i.test(h) || (/Link/i.test(h) && h.toLowerCase() !== 'linkedin' && h.toLowerCase() !== 'profile'))
 
     if (nameIdx === -1) {
       setUploadError('Could not locate a "Name" or "Influencer Name" column in the CSV file.')
@@ -410,6 +424,9 @@ export default function Home() {
         channels.push('𝕏')
       }
 
+      const statusVal = statusIdx !== -1 && row[statusIdx] ? row[statusIdx].trim() : ''
+      const episodeLink = episodeIdx !== -1 && row[episodeIdx] ? row[episodeIdx].trim() : ''
+
       const item = {
         name,
         roleOrg,
@@ -421,6 +438,14 @@ export default function Home() {
 
       if (socialLink && (socialLink.includes('linkedin.com') || socialLink.startsWith('https://www.linkedin.com'))) {
         item.linkedinUrl = socialLink
+      }
+
+      if (statusVal) {
+        item.engagementStatus = statusVal
+      }
+
+      if (episodeLink) {
+        item.episodeLink = episodeLink
       }
 
       parsedItems.push(item)
@@ -445,7 +470,9 @@ export default function Home() {
         notableContent: inf.notableContent || 'Imported influencer.',
         segment: inf.segment || 'accounting',
         categoryId: inf.categoryId || 'active-content-creators',
-        ...(inf.linkedinUrl ? { linkedinUrl: inf.linkedinUrl } : {})
+        ...(inf.linkedinUrl ? { linkedinUrl: inf.linkedinUrl } : {}),
+        ...(inf.engagementStatus ? { engagementStatus: inf.engagementStatus } : {}),
+        ...(inf.episodeLink ? { episodeLink: inf.episodeLink } : {})
       }
     }).filter(Boolean)
 
@@ -494,7 +521,9 @@ export default function Home() {
       'Notable Content / Outreach',
       'Sector',
       'Category',
-      'LinkedIn Profile'
+      'LinkedIn Profile',
+      'Engagement Status',
+      'Episode/Asset Link'
     ]
 
     const rows = []
@@ -507,7 +536,9 @@ export default function Home() {
           item.notableContent,
           item.segment,
           cat.title,
-          item.linkedinUrl || ''
+          item.linkedinUrl || '',
+          item.engagementStatus || '',
+          item.episodeLink || ''
         ])
       })
     })
@@ -558,7 +589,8 @@ export default function Home() {
       const textMatch = 
         item.name.toLowerCase().includes(query.toLowerCase()) ||
         item.roleOrg.toLowerCase().includes(query.toLowerCase()) ||
-        item.notableContent.toLowerCase().includes(query.toLowerCase())
+        item.notableContent.toLowerCase().includes(query.toLowerCase()) ||
+        (item.engagementStatus && item.engagementStatus.toLowerCase().includes(query.toLowerCase()))
 
       const channelMatch = 
         channels.length === 0 || 
@@ -866,7 +898,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                  <div className={styles.formGroup}>
                     <label htmlFor="formLinkedin">LinkedIn Profile URL (Optional)</label>
                     <input
                       id="formLinkedin"
@@ -874,6 +906,30 @@ export default function Home() {
                       placeholder="https://www.linkedin.com/in/username"
                       value={formLinkedin}
                       onChange={(e) => setFormLinkedin(e.target.value)}
+                      className={styles.toolInput}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label htmlFor="formEpisodeLink">Episode / Asset Link (Optional)</label>
+                    <input
+                      id="formEpisodeLink"
+                      type="url"
+                      placeholder="https://libsyn.com/... or youtube.com/..."
+                      value={formEpisodeLink}
+                      onChange={(e) => setFormEpisodeLink(e.target.value)}
+                      className={styles.toolInput}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label htmlFor="formEngagementStatus">Engagement Status (Optional)</label>
+                    <input
+                      id="formEngagementStatus"
+                      type="text"
+                      placeholder="e.g. Episode recorded June 1, published June 24 / In talks"
+                      value={formEngagementStatus}
+                      onChange={(e) => setFormEngagementStatus(e.target.value)}
                       className={styles.toolInput}
                     />
                   </div>
@@ -938,6 +994,8 @@ export default function Home() {
                               <th>Role/Company</th>
                               <th>Sector</th>
                               <th>Channels</th>
+                              <th>Status</th>
+                              <th>Asset Link</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -947,11 +1005,13 @@ export default function Home() {
                                 <td>{item.roleOrg}</td>
                                 <td><span className={styles.previewSectorBadge}>{item.segment}</span></td>
                                 <td>{item.channels.join(' ')}</td>
+                                <td>{item.engagementStatus || '—'}</td>
+                                <td>{item.episodeLink ? 'Yes' : '—'}</td>
                               </tr>
                             ))}
                             {uploadPreview.length > 5 && (
                               <tr>
-                                <td colSpan="4" style={{ textAlign: 'center', color: 'var(--dark-gray)', fontSize: '12px', padding: '8px' }}>
+                                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--dark-gray)', fontSize: '12px', padding: '8px' }}>
                                   + {uploadPreview.length - 5} more influencers
                                 </td>
                               </tr>
@@ -1121,6 +1181,8 @@ export default function Home() {
                       <th>Name</th>
                       <th>Role / Organization</th>
                       <th>Channels</th>
+                      <th>Status</th>
+                      <th>Asset Link</th>
                       <th>Notable Content / Outreach</th>
                     </tr>
                   </thead>
@@ -1179,6 +1241,23 @@ export default function Home() {
                                 return <span key={ch} style={{ display: 'inline-flex' }}>{badgeElement}</span>;
                               })}
                             </div>
+                          </td>
+                          <td className={styles.statusCell}>
+                            {item.engagementStatus || <span className={styles.dash}>—</span>}
+                          </td>
+                          <td className={styles.linkCell}>
+                            {item.episodeLink ? (
+                              <a 
+                                href={item.episodeLink} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className={styles.assetLinkBtn}
+                              >
+                                View Asset ↗
+                              </a>
+                            ) : (
+                              <span className={styles.dash}>—</span>
+                            )}
                           </td>
                           <td className={styles.notableCell}>
                             {renderMarkdown(item.notableContent)}
