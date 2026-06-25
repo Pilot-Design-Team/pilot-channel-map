@@ -116,6 +116,7 @@ export default function Home() {
   const [formChannels, setFormChannels] = useState([])
   const [formLinkedin, setFormLinkedin] = useState('')
   const [formNotable, setFormNotable] = useState('')
+  const [formNotableContentNotes, setFormNotableContentNotes] = useState('')
   const [formEngagementStatus, setFormEngagementStatus] = useState('')
   const [formEpisodeLink, setFormEpisodeLink] = useState('')
   const [formError, setFormError] = useState('')
@@ -235,6 +236,10 @@ export default function Home() {
       newInfluencer.episodeLink = formEpisodeLink.trim()
     }
 
+    if (formNotableContentNotes.trim()) {
+      newInfluencer.notableContentNotes = formNotableContentNotes.trim()
+    }
+
     // Add to state
     const categoriesCopy = JSON.parse(JSON.stringify(categoriesData))
     const cat = categoriesCopy.find(c => c.id === formCategory)
@@ -264,6 +269,7 @@ export default function Home() {
     setFormChannels([])
     setFormLinkedin('')
     setFormNotable('')
+    setFormNotableContentNotes('')
     setFormEngagementStatus('')
     setFormEpisodeLink('')
     setFormSuccess('Influencer added successfully!')
@@ -357,7 +363,8 @@ export default function Home() {
     const headers = rows[headerIndex].map(h => h.trim())
     const nameIdx = headers.findIndex(h => /Influencer Name/i.test(h) || h.toLowerCase() === 'name')
     const roleIdx = headers.findIndex(h => /Job Title/i.test(h) || /Company/i.test(h) || /Role/i.test(h) || /Organization/i.test(h))
-    const descIdx = headers.findIndex(h => /How do they describe/i.test(h) || /describe/i.test(h) || /bio/i.test(h) || /description/i.test(h) || /notable/i.test(h))
+    const descIdx = headers.findIndex(h => /How do they describe/i.test(h) || /describe/i.test(h) || /bio/i.test(h) || /description/i.test(h))
+    const notableIdx = headers.findIndex(h => /Notable Content/i.test(h) || /Notable/i.test(h))
     const socialIdx = headers.findIndex(h => /Link to main social/i.test(h) || /profile/i.test(h) || /LinkedIn/i.test(h))
     const segmentIdx = headers.findIndex(h => /Sector/i.test(h) || /Segment/i.test(h) || /Category/i.test(h))
     const statusIdx = headers.findIndex(h => /Engagement Status/i.test(h) || /Status/i.test(h) || /Engagement/i.test(h))
@@ -432,6 +439,7 @@ export default function Home() {
 
       const statusVal = statusIdx !== -1 && row[statusIdx] ? row[statusIdx].trim() : ''
       const episodeLink = episodeIdx !== -1 && row[episodeIdx] ? row[episodeIdx].trim() : ''
+      const notableNotes = notableIdx !== -1 && row[notableIdx] ? row[notableIdx].trim() : ''
 
       const item = {
         name,
@@ -452,6 +460,10 @@ export default function Home() {
 
       if (episodeLink) {
         item.episodeLink = episodeLink
+      }
+
+      if (notableNotes) {
+        item.notableContentNotes = notableNotes
       }
 
       parsedItems.push(item)
@@ -478,7 +490,8 @@ export default function Home() {
         categoryId: inf.categoryId || 'active-content-creators',
         ...(inf.linkedinUrl ? { linkedinUrl: inf.linkedinUrl } : {}),
         ...(inf.engagementStatus ? { engagementStatus: inf.engagementStatus } : {}),
-        ...(inf.episodeLink ? { episodeLink: inf.episodeLink } : {})
+        ...(inf.episodeLink ? { episodeLink: inf.episodeLink } : {}),
+        ...(inf.notableContentNotes ? { notableContentNotes: inf.notableContentNotes } : {})
       }
     }).filter(Boolean)
 
@@ -524,7 +537,8 @@ export default function Home() {
       'Influencer Name',
       'Job Title, Company',
       'Channels',
-      'Notable Content / Outreach',
+      'Notable Content',
+      'Description',
       'Sector',
       'Category',
       'LinkedIn Profile',
@@ -539,6 +553,7 @@ export default function Home() {
           item.name,
           item.roleOrg,
           item.channels.join(' '),
+          item.notableContentNotes || '',
           item.notableContent,
           item.segment,
           cat.title,
@@ -593,6 +608,8 @@ export default function Home() {
       targetItem.engagementStatus = updatedValue
     } else if (field === 'link') {
       targetItem.episodeLink = updatedValue
+    } else if (field === 'notable') {
+      targetItem.notableContentNotes = updatedValue
     }
 
     setCategoriesData(categoriesCopy)
@@ -609,6 +626,8 @@ export default function Home() {
         customItems[customIdx].engagementStatus = updatedValue
       } else if (field === 'link') {
         customItems[customIdx].episodeLink = updatedValue
+      } else if (field === 'notable') {
+        customItems[customIdx].notableContentNotes = updatedValue
       }
     } else {
       // It's a default item being edited for the first time
@@ -645,7 +664,8 @@ export default function Home() {
         item.name.toLowerCase().includes(query.toLowerCase()) ||
         item.roleOrg.toLowerCase().includes(query.toLowerCase()) ||
         item.notableContent.toLowerCase().includes(query.toLowerCase()) ||
-        (item.engagementStatus && item.engagementStatus.toLowerCase().includes(query.toLowerCase()))
+        (item.engagementStatus && item.engagementStatus.toLowerCase().includes(query.toLowerCase())) ||
+        (item.notableContentNotes && item.notableContentNotes.toLowerCase().includes(query.toLowerCase()))
 
       const channelMatch = 
         channels.length === 0 || 
@@ -990,13 +1010,25 @@ export default function Home() {
                   </div>
 
                   <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
-                    <label htmlFor="formNotable">Notable Content / Outreach Bio (Optional)</label>
+                    <label htmlFor="formNotable">Description / Bio (Optional)</label>
                     <textarea
                       id="formNotable"
                       rows="3"
-                      placeholder="Highlight key books, podcasts, or descriptions of their outreach..."
+                      placeholder="General description of their work, background, and typical content topics..."
                       value={formNotable}
                       onChange={(e) => setFormNotable(e.target.value)}
+                      className={styles.toolTextarea}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label htmlFor="formNotableContentNotes">Notable Content (Optional)</label>
+                    <textarea
+                      id="formNotableContentNotes"
+                      rows="2"
+                      placeholder="Specific notable content pieces (e.g. particular podcast episodes, webinars, or posts)..."
+                      value={formNotableContentNotes}
+                      onChange={(e) => setFormNotableContentNotes(e.target.value)}
                       className={styles.toolTextarea}
                     />
                   </div>
@@ -1051,6 +1083,7 @@ export default function Home() {
                               <th>Channels</th>
                               <th>Status</th>
                               <th>Asset Link</th>
+                              <th>Notable Content</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1062,11 +1095,12 @@ export default function Home() {
                                 <td>{item.channels.join(' ')}</td>
                                 <td>{item.engagementStatus || '—'}</td>
                                 <td>{item.episodeLink ? 'Yes' : '—'}</td>
+                                <td>{item.notableContentNotes || '—'}</td>
                               </tr>
                             ))}
                             {uploadPreview.length > 5 && (
                               <tr>
-                                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--dark-gray)', fontSize: '12px', padding: '8px' }}>
+                                <td colSpan="7" style={{ textAlign: 'center', color: 'var(--dark-gray)', fontSize: '12px', padding: '8px' }}>
                                   + {uploadPreview.length - 5} more influencers
                                 </td>
                               </tr>
@@ -1238,7 +1272,8 @@ export default function Home() {
                       <th>Channels</th>
                       <th>Status</th>
                       <th>Asset Link</th>
-                      <th>Notable Content / Outreach</th>
+                      <th>Notable Content</th>
+                      <th>Description</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1406,6 +1441,54 @@ export default function Home() {
                             )}
                           </td>
                           <td className={styles.notableCell}>
+                            {editingCell && editingCell.name === item.name && editingCell.field === 'notable' ? (
+                              <div className={styles.inlineEditWrapper}>
+                                <input
+                                  type="text"
+                                  className={styles.inlineEditInput}
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit(item, 'notable')
+                                    if (e.key === 'Escape') setEditingCell(null)
+                                  }}
+                                  autoFocus
+                                />
+                                <button 
+                                  type="button" 
+                                  className={styles.saveEditBtn} 
+                                  onClick={() => handleSaveEdit(item, 'notable')}
+                                  title="Save"
+                                >
+                                  ✓
+                                </button>
+                                <button 
+                                  type="button" 
+                                  className={styles.cancelEditBtn} 
+                                  onClick={() => setEditingCell(null)}
+                                  title="Cancel"
+                                >
+                                  &times;
+                                </button>
+                              </div>
+                            ) : (
+                              <div className={styles.cellValueWithEdit}>
+                                <span>{item.notableContentNotes || <span className={styles.dash}>—</span>}</span>
+                                <button
+                                  type="button"
+                                  className={styles.cellEditBtn}
+                                  onClick={() => {
+                                    setEditingCell({ name: item.name, field: 'notable' })
+                                    setEditValue(item.notableContentNotes || '')
+                                  }}
+                                  title="Edit Notable Content"
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className={styles.descCell}>
                             {renderMarkdown(item.notableContent)}
                           </td>
                         </tr>
