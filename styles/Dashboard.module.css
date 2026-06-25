@@ -1404,3 +1404,92 @@
 .dash {
   color: var(--gray-muted);
 }
+
+/* Inline Cell Editing */
+.cellValueWithEdit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.linkCell .cellValueWithEdit {
+  justify-content: center;
+}
+
+.cellEditBtn {
+  opacity: 0;
+  background: none;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity 0.2s, background-color 0.2s;
+  user-select: none;
+}
+
+.tableRow:hover .cellEditBtn {
+  opacity: 0.7;
+}
+
+.cellEditBtn:hover {
+  opacity: 1 !important;
+  background-color: rgba(95, 46, 229, 0.08);
+}
+
+.inlineEditWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.inlineEditInput {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid var(--pilot-purple);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  background-color: var(--white);
+  color: var(--pilot-black);
+}
+
+.inlineEditInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(95, 46, 229, 0.15);
+}
+
+.saveEditBtn,
+.cancelEditBtn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.saveEditBtn {
+  color: #557504;
+}
+
+.saveEditBtn:hover {
+  background-color: rgba(110, 150, 5, 0.08);
+}
+
+.cancelEditBtn {
+  color: var(--error-red);
+  font-size: 18px;
+}
+
+.cancelEditBtn:hover {
+  background-color: rgba(206, 24, 54, 0.08);
+}

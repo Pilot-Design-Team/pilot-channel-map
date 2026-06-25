@@ -127,6 +127,10 @@ export default function Home() {
   const [uploadPreview, setUploadPreview] = useState([])
   const [isDragActive, setIsDragActive] = useState(false)
 
+  // Editing states
+  const [editingCell, setEditingCell] = useState(null) // { name, field }
+  const [editValue, setEditValue] = useState('')
+
   useEffect(() => {
     // Load custom influencers from localStorage
     const savedCustom = localStorage.getItem('pilot_custom_influencers')
@@ -137,8 +141,10 @@ export default function Home() {
         customItems.forEach(item => {
           const cat = categoriesCopy.find(c => c.id === item.categoryId)
           if (cat) {
-            const exists = cat.items.some(x => x.name.toLowerCase() === item.name.toLowerCase())
-            if (!exists) {
+            const existingIdx = cat.items.findIndex(x => x.name.toLowerCase() === item.name.toLowerCase())
+            if (existingIdx !== -1) {
+              cat.items[existingIdx] = item
+            } else {
               cat.items.push(item)
             }
           }
@@ -562,6 +568,55 @@ export default function Home() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const handleSaveEdit = (item, field) => {
+    const updatedValue = editValue.trim()
+    
+    // Create copy of categoriesData
+    const categoriesCopy = JSON.parse(JSON.stringify(categoriesData))
+    
+    let targetItem = null
+    categoriesCopy.forEach(cat => {
+      const found = cat.items.find(x => x.name.toLowerCase() === item.name.toLowerCase())
+      if (found) {
+        targetItem = found
+      }
+    })
+
+    if (!targetItem) {
+      setEditingCell(null)
+      return
+    }
+
+    if (field === 'status') {
+      targetItem.engagementStatus = updatedValue
+    } else if (field === 'link') {
+      targetItem.episodeLink = updatedValue
+    }
+
+    setCategoriesData(categoriesCopy)
+
+    // Save to localStorage
+    const savedCustom = localStorage.getItem('pilot_custom_influencers')
+    let customItems = savedCustom ? JSON.parse(savedCustom) : []
+    
+    // Check if this item is already in customItems
+    const customIdx = customItems.findIndex(x => x.name.toLowerCase() === item.name.toLowerCase())
+    if (customIdx !== -1) {
+      // Update existing custom item
+      if (field === 'status') {
+        customItems[customIdx].engagementStatus = updatedValue
+      } else if (field === 'link') {
+        customItems[customIdx].episodeLink = updatedValue
+      }
+    } else {
+      // It's a default item being edited for the first time
+      customItems.push(targetItem)
+    }
+
+    localStorage.setItem('pilot_custom_influencers', JSON.stringify(customItems))
+    setEditingCell(null)
   }
 
   // Dual-level filtering logic: sector first, then sub-category, then search & channel
@@ -1243,20 +1298,111 @@ export default function Home() {
                             </div>
                           </td>
                           <td className={styles.statusCell}>
-                            {item.engagementStatus || <span className={styles.dash}>—</span>}
+                            {editingCell && editingCell.name === item.name && editingCell.field === 'status' ? (
+                              <div className={styles.inlineEditWrapper}>
+                                <input
+                                  type="text"
+                                  className={styles.inlineEditInput}
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit(item, 'status')
+                                    if (e.key === 'Escape') setEditingCell(null)
+                                  }}
+                                  autoFocus
+                                />
+                                <button 
+                                  type="button" 
+                                  className={styles.saveEditBtn} 
+                                  onClick={() => handleSaveEdit(item, 'status')}
+                                  title="Save"
+                                >
+                                  ✓
+                                </button>
+                                <button 
+                                  type="button" 
+                                  className={styles.cancelEditBtn} 
+                                  onClick={() => setEditingCell(null)}
+                                  title="Cancel"
+                                >
+                                  &times;
+                                </button>
+                              </div>
+                            ) : (
+                              <div className={styles.cellValueWithEdit}>
+                                <span>{item.engagementStatus || <span className={styles.dash}>—</span>}</span>
+                                <button
+                                  type="button"
+                                  className={styles.cellEditBtn}
+                                  onClick={() => {
+                                    setEditingCell({ name: item.name, field: 'status' })
+                                    setEditValue(item.engagementStatus || '')
+                                  }}
+                                  title="Edit Status"
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            )}
                           </td>
                           <td className={styles.linkCell}>
-                            {item.episodeLink ? (
-                              <a 
-                                href={item.episodeLink} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className={styles.assetLinkBtn}
-                              >
-                                View Asset ↗
-                              </a>
+                            {editingCell && editingCell.name === item.name && editingCell.field === 'link' ? (
+                              <div className={styles.inlineEditWrapper}>
+                                <input
+                                  type="url"
+                                  className={styles.inlineEditInput}
+                                  value={editValue}
+                                  placeholder="https://..."
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit(item, 'link')
+                                    if (e.key === 'Escape') setEditingCell(null)
+                                  }}
+                                  autoFocus
+                                />
+                                <button 
+                                  type="button" 
+                                  className={styles.saveEditBtn} 
+                                  onClick={() => handleSaveEdit(item, 'link')}
+                                  title="Save"
+                                >
+                                  ✓
+                                </button>
+                                <button 
+                                  type="button" 
+                                  className={styles.cancelEditBtn} 
+                                  onClick={() => setEditingCell(null)}
+                                  title="Cancel"
+                                >
+                                  &times;
+                                </button>
+                              </div>
                             ) : (
-                              <span className={styles.dash}>—</span>
+                              <div className={styles.cellValueWithEdit}>
+                                {item.episodeLink ? (
+                                  <a 
+                                    href={item.episodeLink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className={styles.assetLinkBtn}
+                                  >
+                                    View Asset ↗
+                                  </a>
+                                ) : (
+                                  <span className={styles.dash}>—</span>
+                                )}
+                                <button
+                                  type="button"
+                                  className={styles.cellEditBtn}
+                                  onClick={() => {
+                                    setEditingCell({ name: item.name, field: 'link' })
+                                    setEditValue(item.episodeLink || '')
+                                  }}
+                                  title="Edit Asset Link"
+                                >
+                                  ✏️
+                                </button>
+                              </div>
                             )}
                           </td>
                           <td className={styles.notableCell}>
