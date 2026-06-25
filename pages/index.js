@@ -37,6 +37,58 @@ const renderMarkdown = (text) => {
   })
 }
 
+// RFC 4180 compliant CSV parser
+function parseCSV(text) {
+  const result = [];
+  let row = [];
+  let cell = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+    
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          cell += '"';
+          i++; // Skip next quote
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        row.push(cell);
+        cell = '';
+      } else if (char === '\r' || char === '\n') {
+        row.push(cell);
+        cell = '';
+        if (row.some(c => c.trim() !== '')) {
+          result.push(row);
+        }
+        row = [];
+        if (char === '\r' && nextChar === '\n') {
+          i++; // Skip \n
+        }
+      } else {
+        cell += char;
+      }
+    }
+  }
+  if (cell !== '' || row.length > 0) {
+    row.push(cell);
+    if (row.some(c => c.trim() !== '')) {
+      result.push(row);
+    }
+  }
+  return result;
+}
+
 export default function Home() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -50,8 +102,51 @@ export default function Home() {
   const [selectedSector, setSelectedSector] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedChannels, setSelectedChannels] = useState([])
+  const [categoriesData, setCategoriesData] = useState(channelMapData.categories)
+
+  // Tools states
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false)
+  const [activeToolTab, setActiveToolTab] = useState('form')
+
+  // Form states
+  const [formName, setFormName] = useState('')
+  const [formRole, setFormRole] = useState('')
+  const [formSector, setFormSector] = useState('accounting')
+  const [formCategory, setFormCategory] = useState('active-content-creators')
+  const [formChannels, setFormChannels] = useState([])
+  const [formLinkedin, setFormLinkedin] = useState('')
+  const [formNotable, setFormNotable] = useState('')
+  const [formError, setFormError] = useState('')
+  const [formSuccess, setFormSuccess] = useState('')
+
+  // Upload states
+  const [uploadError, setUploadError] = useState('')
+  const [uploadSuccess, setUploadSuccess] = useState('')
+  const [uploadPreview, setUploadPreview] = useState([])
+  const [isDragActive, setIsDragActive] = useState(false)
 
   useEffect(() => {
+    // Load custom influencers from localStorage
+    const savedCustom = localStorage.getItem('pilot_custom_influencers')
+    if (savedCustom) {
+      try {
+        const customItems = JSON.parse(savedCustom)
+        const categoriesCopy = JSON.parse(JSON.stringify(channelMapData.categories))
+        customItems.forEach(item => {
+          const cat = categoriesCopy.find(c => c.id === item.categoryId)
+          if (cat) {
+            const exists = cat.items.some(x => x.name.toLowerCase() === item.name.toLowerCase())
+            if (!exists) {
+              cat.items.push(item)
+            }
+          }
+        })
+        setCategoriesData(categoriesCopy)
+      } catch (err) {
+        console.error("Failed to load custom influencers", err)
+      }
+    }
+
     // Check if user is already authenticated
     const sessionToken = localStorage.getItem('pilot_session')
     if (sessionToken === 'pilot_t100_auth_success_2026') {
@@ -100,15 +195,353 @@ export default function Home() {
     }
   }
 
+  // Handle manual influencer submission
+  const handleAddInfluencerSubmit = (e) => {
+    e.preventDefault()
+    setFormError('')
+    setFormSuccess('')
+
+    if (!formName.trim() || !formRole.trim()) {
+      setFormError('Name and Role/Organization are required.')
+      return
+    }
+
+    const newInfluencer = {
+      name: formName.trim(),
+      roleOrg: formRole.trim(),
+      channels: formChannels.length > 0 ? formChannels : ['in'],
+      notableContent: formNotable.trim() || 'Custom influencer added to directory.',
+      segment: formSector,
+      categoryId: formCategory
+    }
+
+    if (formLinkedin.trim()) {
+      newInfluencer.linkedinUrl = formLinkedin.trim()
+    }
+
+    // Add to state
+    const categoriesCopy = JSON.parse(JSON.stringify(categoriesData))
+    const cat = categoriesCopy.find(c => c.id === formCategory)
+    if (cat) {
+      const exists = cat.items.some(x => x.name.toLowerCase() === newInfluencer.name.toLowerCase())
+      if (exists) {
+        setFormError('An influencer with this name already exists in the directory.')
+        return
+      }
+      cat.items.push(newInfluencer)
+    } else {
+      setFormError('Invalid category selection.')
+      return
+    }
+
+    setCategoriesData(categoriesCopy)
+
+    // Save to localStorage
+    const savedCustom = localStorage.getItem('pilot_custom_influencers')
+    const customItems = savedCustom ? JSON.parse(savedCustom) : []
+    customItems.push(newInfluencer)
+    localStorage.setItem('pilot_custom_influencers', JSON.stringify(customItems))
+
+    // Clear form
+    setFormName('')
+    setFormRole('')
+    setFormChannels([])
+    setFormLinkedin('')
+    setFormNotable('')
+    setFormSuccess('Influencer added successfully!')
+  }
+
+  // Handle drag and drop events
+  const handleDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true)
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false)
+    }
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const text = event.target.result
+        try {
+          if (file.name.endsWith('.json')) {
+            const parsed = JSON.parse(text)
+            const items = Array.isArray(parsed) ? parsed : (parsed.items || [])
+            processImportedItems(items)
+          } else if (file.name.endsWith('.csv')) {
+            const parsedRows = parseCSV(text)
+            processImportedCSV(parsedRows)
+          } else {
+            setUploadError('Unsupported file format. Please upload a .csv or .json file.')
+          }
+        } catch (err) {
+          setUploadError('Failed to parse file: ' + err.message)
+        }
+      }
+      reader.readAsText(file)
+    }
+  }
+
+  // Handle client-side file parsing
+  const handleFileUpload = (e) => {
+    setUploadError('')
+    setUploadSuccess('')
+    setUploadPreview([])
+
+    const file = e.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target.result
+      try {
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(text)
+          const items = Array.isArray(parsed) ? parsed : (parsed.items || [])
+          processImportedItems(items)
+        } else if (file.name.endsWith('.csv')) {
+          const parsedRows = parseCSV(text)
+          processImportedCSV(parsedRows)
+        } else {
+          setUploadError('Unsupported file format. Please upload a .csv or .json file.')
+        }
+      } catch (err) {
+        setUploadError('Failed to parse file: ' + err.message)
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const processImportedCSV = (rows) => {
+    if (rows.length === 0) {
+      setUploadError('The CSV file is empty.')
+      return
+    }
+
+    let headerIndex = -1
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].some(cell => /Name/i.test(cell) || /Influencer/i.test(cell))) {
+        headerIndex = i
+        break
+      }
+    }
+    if (headerIndex === -1) headerIndex = 0
+
+    const headers = rows[headerIndex].map(h => h.trim())
+    const nameIdx = headers.findIndex(h => /Influencer Name/i.test(h) || h.toLowerCase() === 'name')
+    const roleIdx = headers.findIndex(h => /Job Title/i.test(h) || /Company/i.test(h) || /Role/i.test(h) || /Organization/i.test(h))
+    const descIdx = headers.findIndex(h => /How do they describe/i.test(h) || /describe/i.test(h) || /bio/i.test(h) || /description/i.test(h) || /notable/i.test(h))
+    const socialIdx = headers.findIndex(h => /Link to main social/i.test(h) || /profile/i.test(h) || /LinkedIn/i.test(h))
+    const segmentIdx = headers.findIndex(h => /Sector/i.test(h) || /Segment/i.test(h) || /Category/i.test(h))
+
+    if (nameIdx === -1) {
+      setUploadError('Could not locate a "Name" or "Influencer Name" column in the CSV file.')
+      return
+    }
+
+    const dataRows = rows.slice(headerIndex + 1)
+    const parsedItems = []
+
+    dataRows.forEach(row => {
+      if (row.length === 0) return
+      const name = row[nameIdx] ? row[nameIdx].trim() : ''
+      if (!name || name === 'Influencer Name' || name.startsWith('Keywords Used')) return
+
+      const roleOrg = roleIdx !== -1 && row[roleIdx] ? row[roleIdx].replace(/\s+/g, ' ').trim() : 'Influencer'
+      const bio = descIdx !== -1 && row[descIdx] ? row[descIdx].replace(/\s+/g, ' ').trim() : ''
+      const socialLink = socialIdx !== -1 && row[socialIdx] ? row[socialIdx].trim() : ''
+      
+      let segment = 'accounting'
+      if (segmentIdx !== -1 && row[segmentIdx]) {
+        const segVal = row[segmentIdx].toLowerCase()
+        if (segVal.includes('tech') || segVal.includes('saas') || segVal.includes('startup') || segVal.includes('vc')) {
+          segment = 'tech'
+        } else if (segVal.includes('franchise')) {
+          segment = 'franchise'
+        } else if (segVal.includes('smb') || segVal.includes('small business')) {
+          segment = 'smb'
+        } else if (segVal.includes('professional') || segVal.includes('services')) {
+          segment = 'professional-services'
+        }
+      } else {
+        const searchStr = `${name} ${roleOrg} ${bio}`.toLowerCase()
+        if (searchStr.includes('cpa')) {
+          segment = 'accounting'
+        } else if (searchStr.includes('small business') || searchStr.includes('smallbiz') || searchStr.includes('entrepreneur')) {
+          segment = 'smb'
+        } else if (searchStr.includes('vc') || searchStr.includes('venture') || searchStr.includes('startup') || searchStr.includes('saas')) {
+          segment = 'tech'
+        } else if (searchStr.includes('agency') || searchStr.includes('marketing') || searchStr.includes('consult')) {
+          segment = 'professional-services'
+        }
+      }
+
+      const channels = ['in']
+      const searchStr = `${roleOrg} ${bio} ${socialLink}`.toLowerCase()
+      if (searchStr.includes('podcast') || searchStr.includes('show') || searchStr.includes('host')) {
+        channels.push('🎙')
+      }
+      if (searchStr.includes('book') || searchStr.includes('author') || searchStr.includes('publish')) {
+        channels.push('📖')
+      }
+      if (searchStr.includes('speaker') || searchStr.includes('speaking') || searchStr.includes('keynote')) {
+        channels.push('🎤')
+      }
+      if (searchStr.includes('blog') || searchStr.includes('article') || searchStr.includes('writes')) {
+        if (searchStr.includes('newsletter')) {
+          channels.push('✉')
+        } else {
+          channels.push('✍')
+        }
+      }
+      if (searchStr.includes('youtube') || searchStr.includes('video')) {
+        channels.push('▶')
+      }
+      if (searchStr.includes('twitter') || searchStr.includes('x.com')) {
+        channels.push('𝕏')
+      }
+
+      const item = {
+        name,
+        roleOrg,
+        channels: Array.from(new Set(channels)),
+        notableContent: bio ? (bio.length > 200 ? bio.substring(0, 197) + '...' : bio) : 'Imported influencer.',
+        segment,
+        categoryId: 'active-content-creators'
+      }
+
+      if (socialLink && (socialLink.includes('linkedin.com') || socialLink.startsWith('https://www.linkedin.com'))) {
+        item.linkedinUrl = socialLink
+      }
+
+      parsedItems.push(item)
+    })
+
+    if (parsedItems.length === 0) {
+      setUploadError('No valid influencer records found in the CSV.')
+      return
+    }
+
+    setUploadPreview(parsedItems)
+    setUploadSuccess(`Successfully parsed ${parsedItems.length} influencers. Review below and click Import.`)
+  }
+
+  const processImportedItems = (items) => {
+    const parsedItems = items.map(inf => {
+      if (!inf.name) return null
+      return {
+        name: inf.name,
+        roleOrg: inf.roleOrg || 'Influencer',
+        channels: Array.isArray(inf.channels) ? inf.channels : ['in'],
+        notableContent: inf.notableContent || 'Imported influencer.',
+        segment: inf.segment || 'accounting',
+        categoryId: inf.categoryId || 'active-content-creators',
+        ...(inf.linkedinUrl ? { linkedinUrl: inf.linkedinUrl } : {})
+      }
+    }).filter(Boolean)
+
+    if (parsedItems.length === 0) {
+      setUploadError('No valid influencer records found in the JSON.')
+      return
+    }
+
+    setUploadPreview(parsedItems)
+    setUploadSuccess(`Successfully parsed ${parsedItems.length} influencers. Review below and click Import.`)
+  }
+
+  const handleConfirmImport = () => {
+    if (uploadPreview.length === 0) return
+
+    const categoriesCopy = JSON.parse(JSON.stringify(categoriesData))
+    const savedCustom = localStorage.getItem('pilot_custom_influencers')
+    const customItems = savedCustom ? JSON.parse(savedCustom) : []
+
+    let importedCount = 0
+
+    uploadPreview.forEach(item => {
+      const cat = categoriesCopy.find(c => c.id === item.categoryId)
+      if (cat) {
+        const exists = cat.items.some(x => x.name.toLowerCase() === item.name.toLowerCase())
+        if (!exists) {
+          cat.items.push(item)
+          customItems.push(item)
+          importedCount++
+        }
+      }
+    })
+
+    setCategoriesData(categoriesCopy)
+    localStorage.setItem('pilot_custom_influencers', JSON.stringify(customItems))
+
+    setUploadPreview([])
+    setUploadSuccess(`Successfully imported ${importedCount} new influencers to the directory!`)
+  }
+
+  const handleExportCSV = () => {
+    const headers = [
+      'Influencer Name',
+      'Job Title, Company',
+      'Channels',
+      'Notable Content / Outreach',
+      'Sector',
+      'Category',
+      'LinkedIn Profile'
+    ]
+
+    const rows = []
+    categoriesData.forEach(cat => {
+      cat.items.forEach(item => {
+        rows.push([
+          item.name,
+          item.roleOrg,
+          item.channels.join(' '),
+          item.notableContent,
+          item.segment,
+          cat.title,
+          item.linkedinUrl || ''
+        ])
+      })
+    })
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(val => {
+          const escaped = val.replace(/"/g, '""')
+          return `"${escaped}"`
+        }).join(',')
+      )
+    ].join('\r\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `pilot_content_channel_map_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   // Dual-level filtering logic: sector first, then sub-category, then search & channel
   const getFilteredItems = (sectorId, catId, query, channels) => {
     let items = []
     
     // 1. Filter by Sector
     if (sectorId === 'all') {
-      items = channelMapData.categories.flatMap(c => c.items.map(item => ({ ...item, categoryTitle: c.title, categoryId: c.id })))
+      items = categoriesData.flatMap(c => c.items.map(item => ({ ...item, categoryTitle: c.title, categoryId: c.id })))
     } else {
-      items = channelMapData.categories.flatMap(c => 
+      items = categoriesData.flatMap(c => 
         c.items
           .filter(item => item.segment === sectorId)
           .map(item => ({ ...item, categoryTitle: c.title, categoryId: c.id }))
@@ -139,9 +572,9 @@ export default function Home() {
   const getDynamicPrevalence = (sectorId) => {
     let items = []
     if (sectorId === 'all') {
-      items = channelMapData.categories.flatMap(c => c.items)
+      items = categoriesData.flatMap(c => c.items)
     } else {
-      items = channelMapData.categories.flatMap(c => c.items.filter(item => item.segment === sectorId))
+      items = categoriesData.flatMap(c => c.items.filter(item => item.segment === sectorId))
     }
 
     const total = items.length || 1
@@ -297,6 +730,263 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Database Management Tools Card */}
+      <div className={styles.toolCard}>
+        <div className={styles.toolHeader} onClick={() => setIsToolsExpanded(!isToolsExpanded)}>
+          <div className={styles.toolHeaderTitle}>
+            <svg className={`${styles.toolChevron} ${isToolsExpanded ? styles.expanded : ''}`} width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 9l4 4 4-4" />
+            </svg>
+            <h2>Database Management Tools</h2>
+            <span className={styles.toolSubtitle}>Add, upload, or export influencers in the directory</span>
+          </div>
+          <button 
+            type="button" 
+            className={styles.exportBtn} 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleExportCSV();
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export Database (CSV)
+          </button>
+        </div>
+
+        {isToolsExpanded && (
+          <div className={styles.toolBody}>
+            <div className={styles.toolTabs}>
+              <button 
+                type="button"
+                className={`${styles.toolTabBtn} ${activeToolTab === 'form' ? styles.activeToolTabBtn : ''}`}
+                onClick={() => setActiveToolTab('form')}
+              >
+                Add Influencer
+              </button>
+              <button 
+                type="button"
+                className={`${styles.toolTabBtn} ${activeToolTab === 'upload' ? styles.activeToolTabBtn : ''}`}
+                onClick={() => setActiveToolTab('upload')}
+              >
+                Import List (CSV/JSON)
+              </button>
+            </div>
+
+            <div className={styles.tabContent}>
+              {activeToolTab === 'form' ? (
+                <form onSubmit={handleAddInfluencerSubmit} className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="formName">Influencer Name *</label>
+                    <input
+                      id="formName"
+                      type="text"
+                      placeholder="e.g. Jane Doe"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      required
+                      className={styles.toolInput}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label htmlFor="formRole">Job Title & Company *</label>
+                    <input
+                      id="formRole"
+                      type="text"
+                      placeholder="e.g. Founder, Startup X"
+                      value={formRole}
+                      onChange={(e) => setFormRole(e.target.value)}
+                      required
+                      className={styles.toolInput}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label htmlFor="formSector">Sector *</label>
+                    <select
+                      id="formSector"
+                      value={formSector}
+                      onChange={(e) => setFormSector(e.target.value)}
+                      className={styles.toolSelect}
+                    >
+                      {sectors.filter(s => s.id !== 'all').map(s => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label htmlFor="formCategory">Category *</label>
+                    <select
+                      id="formCategory"
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className={styles.toolSelect}
+                    >
+                      {categoriesData.slice(0, 5).map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label>Active Channels</label>
+                    <div className={styles.formChannelPills}>
+                      {channelMapData.key.map(ch => {
+                        const isSelected = formChannels.includes(ch.icon)
+                        const meta = channelColors[ch.icon] || { bg: 'rgba(255,255,255,0.05)', text: '#fff', border: 'transparent' }
+                        return (
+                          <button
+                            key={ch.icon}
+                            type="button"
+                            onClick={() => {
+                              if (formChannels.includes(ch.icon)) {
+                                setFormChannels(formChannels.filter(c => c !== ch.icon))
+                              } else {
+                                setFormChannels([...formChannels, ch.icon])
+                              }
+                            }}
+                            className={`${styles.formChannelPill} ${isSelected ? styles.activeFormChannelPill : ''}`}
+                            style={{
+                              '--pill-bg': meta.bg,
+                              '--pill-text': meta.text,
+                              '--pill-border': meta.border,
+                              borderColor: isSelected ? meta.text : 'rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            <span>{ch.icon}</span>
+                            <span>{ch.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label htmlFor="formLinkedin">LinkedIn Profile URL (Optional)</label>
+                    <input
+                      id="formLinkedin"
+                      type="url"
+                      placeholder="https://www.linkedin.com/in/username"
+                      value={formLinkedin}
+                      onChange={(e) => setFormLinkedin(e.target.value)}
+                      className={styles.toolInput}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label htmlFor="formNotable">Notable Content / Outreach Bio (Optional)</label>
+                    <textarea
+                      id="formNotable"
+                      rows="3"
+                      placeholder="Highlight key books, podcasts, or descriptions of their outreach..."
+                      value={formNotable}
+                      onChange={(e) => setFormNotable(e.target.value)}
+                      className={styles.toolTextarea}
+                    />
+                  </div>
+
+                  {formError && <div className={styles.formErrorMsg}>{formError}</div>}
+                  {formSuccess && <div className={styles.formSuccessMsg}>{formSuccess}</div>}
+
+                  <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                    <button type="submit" className={styles.submitBtn}>
+                      Add Influencer to Directory
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className={styles.uploadContainer}>
+                  <div 
+                    className={`${styles.uploadDropZone} ${isDragActive ? styles.dragActive : ''}`}
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.uploadZoneIcon}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <p>Drag and drop a <strong>.csv</strong> or <strong>.json</strong> file here, or click to browse</p>
+                    <input
+                      type="file"
+                      accept=".csv,.json"
+                      onChange={handleFileUpload}
+                      className={styles.fileInputHidden}
+                      id="fileInput"
+                    />
+                    <label htmlFor="fileInput" className={styles.browseFileBtn}>Browse Files</label>
+                  </div>
+
+                  {uploadError && <div className={styles.formErrorMsg}>{uploadError}</div>}
+                  {uploadSuccess && <div className={styles.formSuccessMsg}>{uploadSuccess}</div>}
+
+                  {uploadPreview.length > 0 && (
+                    <div className={styles.previewSection}>
+                      <h3>Preview Imported Data ({uploadPreview.length} influencers)</h3>
+                      <div className={styles.previewTableWrapper}>
+                        <table className={styles.previewTable}>
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Role/Company</th>
+                              <th>Sector</th>
+                              <th>Channels</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {uploadPreview.slice(0, 5).map((item, idx) => (
+                              <tr key={idx}>
+                                <td><strong>{item.name}</strong></td>
+                                <td>{item.roleOrg}</td>
+                                <td><span className={styles.previewSectorBadge}>{item.segment}</span></td>
+                                <td>{item.channels.join(' ')}</td>
+                              </tr>
+                            ))}
+                            {uploadPreview.length > 5 && (
+                              <tr>
+                                <td colSpan="4" style={{ textAlign: 'center', color: 'var(--dark-gray)', fontSize: '12px', padding: '8px' }}>
+                                  + {uploadPreview.length - 5} more influencers
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className={styles.previewActions}>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setUploadPreview([]);
+                            setUploadSuccess('');
+                          }} 
+                          className={styles.cancelImportBtn}
+                        >
+                          Clear
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={handleConfirmImport} 
+                          className={styles.confirmImportBtn}
+                        >
+                          Import All {uploadPreview.length} Influencers
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Explorer Column (Search & Table) */}
       <div className={styles.explorerColumn}>
         
@@ -384,7 +1074,7 @@ export default function Home() {
               {getFilteredItems(selectedSector, 'all', searchQuery, selectedChannels).length}
             </span>
           </button>
-          {channelMapData.categories.slice(0, 5).map(cat => {
+          {categoriesData.slice(0, 5).map(cat => {
             const count = getFilteredItems(selectedSector, cat.id, searchQuery, selectedChannels).length
             return (
               <button
